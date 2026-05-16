@@ -25,11 +25,12 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- COMPACT PAGE PADDING CSS ---
+# --- COMPACT PAGE PADDING & THEME ADAPTATION ---
 st.markdown("""
     <style>
+    /* Осигуряваме място под навигационната лента на Streamlit, за да няма изрязване */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
     }
     </style>
@@ -95,36 +96,35 @@ try:
 
     # --- MAIN UI ---
     if not df_filtered.empty:
-        # Изчисляване на стойностите за балоните
         points_count = len(df_filtered)
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # ХЕДЪР РЕД: Балони вляво, Емблема вдясно (Всичко на един ред)
+        # НАПЪЛНО АДАПТИВЕН ХЕДЪР: Без бял фон, с интелигентни полупрозрачни балони
         header_html = f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; padding: 10px 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; margin-bottom: 15px;">
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 80px;">
-                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Points</span>
-                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{points_count}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 75px;">
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Points</span>
+                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{points_count}</span>
                 </div>
-                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 80px;">
-                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Birds</span>
-                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{birds_count}</span>
+                <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 75px;">
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Birds</span>
+                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{birds_count}</span>
                 </div>
-                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 130px;">
-                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Latest Sync</span>
-                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{latest_sync_str}</span>
+                <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 120px;">
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Latest Sync</span>
+                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{latest_sync_str}</span>
                 </div>
             </div>
-            <div style="font-size: 1.35rem; font-weight: 700; color: #1f2937; letter-spacing: -0.5px; white-space: nowrap;">
+            <div style="font-size: 1.3rem; font-weight: 700; color: inherit; letter-spacing: -0.5px; white-space: nowrap; opacity: 0.9;">
                 🦅 Kalimok Bird Tracking Platform
             </div>
         </div>
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # ТАБОВЕ И КАРТА
+        # ТАБОВЕ И СЪДЪРЖАНИЕ
         tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
 
         with tabs[0]:
@@ -137,13 +137,13 @@ try:
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
                     for _, r in dev_df.iterrows():
                         folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, tooltip=f"{r['Device']}").add_to(m)
-            st_folium(m, width="100%", height=530, key="map_final_v4")
+            st_folium(m, width="100%", height=510, key="map_final_v5")
 
         with tabs[1]:
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
             if not df_exp_f.empty:
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=260, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=260, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=250, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=250, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
 
         with tabs[2]:
             if len(df_filtered) > 5:
