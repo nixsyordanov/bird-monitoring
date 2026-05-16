@@ -25,49 +25,12 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- REFINED COMPACT CSS ---
+# --- COMPACT PAGE PADDING CSS ---
 st.markdown("""
     <style>
-    /* Нагласяне на основния контейнер */
     .block-container {
-        padding-top: 2rem !important;
+        padding-top: 1rem !important;
         padding-bottom: 0rem !important;
-    }
-    
-    /* Заглавие */
-    .main-title {
-        font-size: 2.2rem !important;
-        font-weight: 700;
-        color: #1f2937;
-        margin-bottom: 0.5rem !important;
-        margin-top: -20px !important;
-    }
-
-    /* Стилизиране на балоните (Metrics) */
-    div[data-testid="metric-container"] {
-        background-color: #f3f4f6 !important; /* Светло сив фон за балона */
-        padding: 8px 20px !important;
-        border-radius: 50px !important;
-        border: 1px solid #d1d5db !important;
-        width: fit-content !important;
-        margin-bottom: 10px !important;
-    }
-    
-    /* Текст вътре в балоните */
-    div[data-testid="stMetricLabel"] > div {
-        font-size: 0.75rem !important;
-        color: #4b5563 !important;
-        text-transform: uppercase;
-    }
-    div[data-testid="stMetricValue"] > div {
-        font-size: 1rem !important;
-        color: #111827 !important;
-        font-weight: bold !important;
-    }
-
-    /* Табове */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -131,15 +94,37 @@ try:
         df_filtered = pd.DataFrame()
 
     # --- MAIN UI ---
-    st.markdown('<p class="main-title">🦅 Kalimok Bird Tracking Platform</p>', unsafe_allow_html=True)
-    
     if not df_filtered.empty:
-        # Metrics Row
-        col_m = st.columns([0.8, 0.8, 1.2, 3]) 
-        col_m[0].metric("Points", len(df_filtered))
-        col_m[1].metric("Birds", len(selected_devices))
-        col_m[2].metric("Latest Sync", df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b'))
+        # Изчисляване на стойностите за балоните
+        points_count = len(df_filtered)
+        birds_count = len(selected_devices)
+        latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
+        # ХЕДЪР РЕД: Балони вляво, Емблема вдясно (Всичко на един ред)
+        header_html = f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; padding: 10px 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; margin-bottom: 15px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 80px;">
+                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Points</span>
+                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{points_count}</span>
+                </div>
+                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 80px;">
+                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Birds</span>
+                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{birds_count}</span>
+                </div>
+                <div style="background-color: #f3f4f6; padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; text-align: center; min-width: 130px;">
+                    <span style="font-size: 0.7rem; color: #6b7280; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Latest Sync</span>
+                    <span style="font-size: 1rem; color: #111827; font-weight: 700;">{latest_sync_str}</span>
+                </div>
+            </div>
+            <div style="font-size: 1.35rem; font-weight: 700; color: #1f2937; letter-spacing: -0.5px; white-space: nowrap;">
+                🦅 Kalimok Bird Tracking Platform
+            </div>
+        </div>
+        """
+        st.markdown(header_html, unsafe_allow_html=True)
+
+        # ТАБОВЕ И КАРТА
         tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
 
         with tabs[0]:
@@ -152,13 +137,13 @@ try:
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
                     for _, r in dev_df.iterrows():
                         folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, tooltip=f"{r['Device']}").add_to(m)
-            st_folium(m, width="100%", height=520, key="map_final")
+            st_folium(m, width="100%", height=530, key="map_final_v4")
 
         with tabs[1]:
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
             if not df_exp_f.empty:
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=260, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=260, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
 
         with tabs[2]:
             if len(df_filtered) > 5:
@@ -169,4 +154,4 @@ try:
         st.info("Select transmitters from the sidebar to begin analysis.")
 
 except Exception as e:
-    st.error(f"Waiting for configuration... {e}")
+    st.error(f"Error: {e}")
