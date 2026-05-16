@@ -44,26 +44,24 @@ st.markdown("""
         transition: all 0.2s ease-in-out !important;
     }
     
-    /* Ефект при посочване с мишката (Hover) */
+    /* Hover ефект */
     .stTabs [data-baseweb="tab"]:hover {
         background-color: rgba(128, 128, 128, 0.2) !important;
         border-color: rgba(128, 128, 128, 0.3) !important;
         cursor: pointer;
     }
     
-    /* Активен (избран) бутон */
+    /* Активен бутон */
     .stTabs [aria-selected="true"] {
         background-color: rgba(128, 128, 128, 0.25) !important;
         border-color: rgba(128, 128, 128, 0.45) !important;
         font-weight: 700 !important;
     }
     
-    /* Премахване на дебелата линия на Streamlit под активния таб */
     .stTabs [data-baseweb="tab-highlight"] {
         background-color: transparent !important;
     }
     
-    /* Контейнер на самите бутони */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0px !important;
         margin-bottom: 15px !important;
@@ -136,7 +134,7 @@ try:
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # ХЕДЪР РЕД: Балони вляво, Емблема вдясно
+        # ХЕДЪР РЕД
         header_html = f"""
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -160,7 +158,6 @@ try:
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # ТАБОВЕ С ОБНОВЕН ДИЗАЙН
         tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
 
         with tabs[0]:
@@ -169,11 +166,50 @@ try:
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
                 points = dev_df[['Lat', 'Lon']].values.tolist()
+                
                 if points:
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
+                    
                     for _, r in dev_df.iterrows():
-                        folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, tooltip=f"{r['Device']}").add_to(m)
-            st_folium(m, width="100%", height=510, key="map_final_v6")
+                        # Структуриране на изключително богат HTML за изскачащия прозорец
+                        popup_html = f"""
+                        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; max-width: 280px; line-height: 1.4;">
+                            <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ Device: {r['Device']}</h4>
+                            <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
+                                <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+                                <tr><td><b>Coordinates:</b></td><td style="text-align: right;">{r['Lat']:.5f}, {r['Lon']:.5f}</td></tr>
+                                <tr><td><b>Sequence No:</b></td><td style="text-align: right;">{int(r.get('Sequence Number', 0))}</td></tr>
+                                <tr><td><b>Signal (LQI):</b></td><td style="text-align: right;">{r.get('LQI', 'N/A')} (Link Q.: {int(r.get('Link Quality', 0))})</td></tr>
+                                <tr><td><b>Network Op:</b></td><td style="text-align: right; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{r.get('Operator Name', 'N/A')}</td></tr>
+                                <tr><td><b>Base Stations:</b></td><td style="text-align: right; font-size: 10px; color: #666;">{r.get('Base Stations (ID, RSSI, Reps)', 'N/A')}</td></tr>
+                            </table>
+                            
+                            <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; color: #555; border-top: 1px solid #ddd; padding-top: 6px;">📊 Packet Burst Readings (Last 48h)</div>
+                            <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 11px; border: 1px solid #dddddd;">
+                                <tr style="background-color: #f9f9f9; font-weight: bold; border-bottom: 1px solid #ddd;">
+                                    <th style="padding: 3px; border-right: 1px solid #ddd;">#</th>
+                                    <th style="padding: 3px; border-right: 1px solid #ddd;">VeDBA</th>
+                                    <th style="padding: 3px;">Temp</th>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #eee;"><td>1</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 1 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 1 (°C)', 'N/A')}°C</td></tr>
+                                <tr style="border-bottom: 1px solid #eee;"><td>2</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 2 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 2 (°C)', 'N/A')}°C</td></tr>
+                                <tr style="border-bottom: 1px solid #eee;"><td>3</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 3 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 3 (°C)', 'N/A')}°C</td></tr>
+                                <tr style="border-bottom: 1px solid #eee;"><td>4</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 4 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 4 (°C)', 'N/A')}°C</td></tr>
+                                <tr><td>5</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 5 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 5 (°C)', 'N/A')}°C</td></tr>
+                            </table>
+                        </div>
+                        """
+                        
+                        folium.CircleMarker(
+                            location=[r['Lat'], r['Lon']],
+                            radius=5,
+                            color='white',
+                            fill=True,
+                            fill_color=color,
+                            fill_opacity=1,
+                            popup=folium.Popup(popup_html, max_width=300)
+                        ).add_to(m)
+            st_folium(m, width="100%", height=510, key="map_final_v7")
 
         with tabs[1]:
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
