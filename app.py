@@ -21,11 +21,16 @@ st.markdown("""
     .main {
         background-color: #f8f9fa;
     }
-    .stMetric {
+    div[data-testid="metric-container"] {
         background-color: #ffffff;
         padding: 15px;
         border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    /* Форсираме тъмен цвят за текста и цифрите, за да се виждат на белия фон */
+    div[data-testid="metric-container"] label,
+    div[data-testid="metric-container"] div {
+        color: #1f2937 !important;
     }
     </style>
     """, unsafe_allow_html=True)
