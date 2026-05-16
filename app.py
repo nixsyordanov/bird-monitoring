@@ -25,13 +25,49 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- COMPACT PAGE PADDING & THEME ADAPTATION ---
+# --- COMPACT PAGE PADDING & INTERACTIVE BUTTON TABS CSS ---
 st.markdown("""
     <style>
-    /* Осигуряваме място под навигационната лента на Streamlit, за да няма изрязване */
+    /* Осигуряваме място под навигационната лента на Streamlit */
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
+    }
+    
+    /* ПРЕВРЪЩАНЕ НА ТАБОВЕТЕ В БУТОНИ (Адаптивни към темата) */
+    .stTabs [data-baseweb="tab"] {
+        background-color: rgba(128, 128, 128, 0.1) !important;
+        padding: 8px 22px !important;
+        border-radius: 30px !important;
+        border: 1px solid rgba(128, 128, 128, 0.2) !important;
+        margin-right: 8px !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    
+    /* Ефект при посочване с мишката (Hover) */
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: rgba(128, 128, 128, 0.2) !important;
+        border-color: rgba(128, 128, 128, 0.3) !important;
+        cursor: pointer;
+    }
+    
+    /* Активен (избран) бутон */
+    .stTabs [aria-selected="true"] {
+        background-color: rgba(128, 128, 128, 0.25) !important;
+        border-color: rgba(128, 128, 128, 0.45) !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Премахване на дебелата линия на Streamlit под активния таб */
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
+    }
+    
+    /* Контейнер на самите бутони */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0px !important;
+        margin-bottom: 15px !important;
+        border-bottom: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -100,7 +136,7 @@ try:
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # НАПЪЛНО АДАПТИВЕН ХЕДЪР: Без бял фон, с интелигентни полупрозрачни балони
+        # ХЕДЪР РЕД: Балони вляво, Емблема вдясно
         header_html = f"""
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -124,7 +160,7 @@ try:
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # ТАБОВЕ И СЪДЪРЖАНИЕ
+        # ТАБОВЕ С ОБНОВЕН ДИЗАЙН
         tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
 
         with tabs[0]:
@@ -137,7 +173,7 @@ try:
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
                     for _, r in dev_df.iterrows():
                         folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, tooltip=f"{r['Device']}").add_to(m)
-            st_folium(m, width="100%", height=510, key="map_final_v5")
+            st_folium(m, width="100%", height=510, key="map_final_v6")
 
         with tabs[1]:
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
