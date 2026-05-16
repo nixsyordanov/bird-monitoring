@@ -84,16 +84,24 @@ try:
         if st.sidebar.checkbox(f"● {dev}", value=(i == 0), key=f"check_{dev}"):
             selected_devices.append(dev)
 
-    # Date Selection - Default to Last 14 Days
+# --- DATE SELECTION WITH ERROR HANDLING ---
     st.sidebar.subheader("Time Range")
-    max_data_date = df_main['Time (UTC)'].max().date()
-    default_start_date = max_data_date - timedelta(days=14)
+    
+    # Реалните граници на данните
+    absolute_min_date = df_main['Time (UTC)'].min().date()
+    absolute_max_date = df_main['Time (UTC)'].max().date()
+    
+    # Изчисляваме желаната начална дата (14 дни назад)
+    desired_start_date = absolute_max_date - timedelta(days=14)
+    
+    # КРИТИЧНА КОРЕКЦИЯ: Осигуряваме, че стартът не е преди най-стария запис
+    start_date_default = max(desired_start_date, absolute_min_date)
     
     date_range = st.sidebar.date_input(
         "Observation Window:",
-        value=(default_start_date, max_data_date),
-        min_value=df_main['Time (UTC)'].min().date(),
-        max_value=max_data_date
+        value=(start_date_default, absolute_max_date),
+        min_value=absolute_min_date,
+        max_value=absolute_max_date
     )
 
     # Filtering logic
