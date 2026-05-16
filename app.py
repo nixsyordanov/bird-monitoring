@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import folium
-from folium.plugins import HeatMap
+from folium.plugins import HeatMap, Draw, MeasureControl, Fullscreen
 from streamlit_folium import st_folium
 import plotly.express as px
 from sklearn.cluster import DBSCAN
@@ -25,16 +25,13 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- COMPACT PAGE PADDING & INTERACTIVE BUTTON TABS CSS ---
+# --- COMPACT PAGE PADDING & TABS CSS ---
 st.markdown("""
     <style>
-    /* Осигуряваме място под навигационната лента на Streamlit */
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
     }
-    
-    /* ПРЕВРЪЩАНЕ НА ТАБОВЕТЕ В БУТОНИ (Адаптивни към темата) */
     .stTabs [data-baseweb="tab"] {
         background-color: rgba(128, 128, 128, 0.1) !important;
         padding: 8px 22px !important;
@@ -43,29 +40,31 @@ st.markdown("""
         margin-right: 8px !important;
         transition: all 0.2s ease-in-out !important;
     }
-    
-    /* Hover ефект */
     .stTabs [data-baseweb="tab"]:hover {
         background-color: rgba(128, 128, 128, 0.2) !important;
         border-color: rgba(128, 128, 128, 0.3) !important;
         cursor: pointer;
     }
-    
-    /* Активен бутон */
     .stTabs [aria-selected="true"] {
         background-color: rgba(128, 128, 128, 0.25) !important;
         border-color: rgba(128, 128, 128, 0.45) !important;
         font-weight: 700 !important;
     }
-    
     .stTabs [data-baseweb="tab-highlight"] {
         background-color: transparent !important;
     }
-    
     .stTabs [data-baseweb="tab-list"] {
         gap: 0px !important;
-        margin-bottom: 15px !important;
+        margin-bottom: 10px !important;
         border-bottom: none !important;
+    }
+    /* Стилизиране на малкия Toolbar над картата */
+    .map-toolbar {
+        background-color: rgba(128, 128, 128, 0.05);
+        padding: 5px 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        border: 1px solid rgba(128, 128, 128, 0.15);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -118,7 +117,6 @@ try:
     else:
         date_range = []
 
-    # Filtering
     if len(date_range) == 2: start_d, end_d = date_range
     elif len(date_range) == 1: start_d = end_d = date_range[0]
     else: start_d = end_d = None
@@ -134,7 +132,7 @@ try:
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # ХЕДЪР РЕД
+        # HEADER
         header_html = f"""
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -161,30 +159,54 @@ try:
         tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
 
         with tabs[0]:
-            m = folium.Map(location=[df_filtered['Lat'].mean(), df_filtered['Lon'].mean()], zoom_start=10)
+            # --- MAP TOOLBAR ---
+            st.markdown('<div class="map-toolbar">', unsafe_allow_html=True)
+            t_col1, t_col2, t_col3 = st.columns([1.5, 2, 6])
+            with t_col1:
+                show_heat = st.toggle("🔥 Heatmap", value=False)
+            with t_col2:
+                map_style = st.selectbox("Basemap", ["Satellite", "CartoDB Positron", "OpenStreetMap"], label_visibility="collapsed")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # --- MAP INITIALIZATION ---
+            center_lat, center_lon = df_filtered['Lat'].mean(), df_filtered['Lon'].mean()
+            
+            if map_style == "Satellite":
+                m = folium.Map(location=[center_lat, center_lon], zoom_start=11, 
+                               tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', 
+                               attr='Esri World Imagery')
+            elif map_style == "CartoDB Positron":
+                m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='CartoDB positron')
+            else:
+                m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
+
+            # --- PLUGINS (Draw, Measure, Fullscreen) ---
+            Draw(export=True, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
+            MeasureControl(position='topright', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
+            Fullscreen(position='topright', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
+
+            # --- DATA LAYERS ---
+            heat_data = []
             for dev in selected_devices:
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
                 points = dev_df[['Lat', 'Lon']].values.tolist()
                 
                 if points:
+                    heat_data.extend(points)
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
                     
                     for _, r in dev_df.iterrows():
-                        # Структуриране на изключително богат HTML за изскачащия прозорец
                         popup_html = f"""
-                        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; max-width: 280px; line-height: 1.4;">
-                            <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ Device: {r['Device']}</h4>
+                        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
+                            <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ {r['Device']}</h4>
                             <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
                                 <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
-                                <tr><td><b>Coordinates:</b></td><td style="text-align: right;">{r['Lat']:.5f}, {r['Lon']:.5f}</td></tr>
-                                <tr><td><b>Sequence No:</b></td><td style="text-align: right;">{int(r.get('Sequence Number', 0))}</td></tr>
-                                <tr><td><b>Signal (LQI):</b></td><td style="text-align: right;">{r.get('LQI', 'N/A')} (Link Q.: {int(r.get('Link Quality', 0))})</td></tr>
-                                <tr><td><b>Network Op:</b></td><td style="text-align: right; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{r.get('Operator Name', 'N/A')}</td></tr>
-                                <tr><td><b>Base Stations:</b></td><td style="text-align: right; font-size: 10px; color: #666;">{r.get('Base Stations (ID, RSSI, Reps)', 'N/A')}</td></tr>
+                                <tr><td><b>Coords:</b></td><td style="text-align: right;">{r['Lat']:.5f}, {r['Lon']:.5f}</td></tr>
+                                <tr><td><b>Seq No:</b></td><td style="text-align: right;">{int(r.get('Sequence Number', 0))}</td></tr>
+                                <tr><td><b>Signal:</b></td><td style="text-align: right;">{r.get('LQI', 'N/A')}</td></tr>
                             </table>
-                            
-                            <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; color: #555; border-top: 1px solid #ddd; padding-top: 6px;">📊 Packet Burst Readings (Last 48h)</div>
+                            <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; color: #555; border-top: 1px solid #ddd; padding-top: 6px;">📊 Packet Burst Readings</div>
                             <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 11px; border: 1px solid #dddddd;">
                                 <tr style="background-color: #f9f9f9; font-weight: bold; border-bottom: 1px solid #ddd;">
                                     <th style="padding: 3px; border-right: 1px solid #ddd;">#</th>
@@ -199,17 +221,12 @@ try:
                             </table>
                         </div>
                         """
-                        
-                        folium.CircleMarker(
-                            location=[r['Lat'], r['Lon']],
-                            radius=5,
-                            color='white',
-                            fill=True,
-                            fill_color=color,
-                            fill_opacity=1,
-                            popup=folium.Popup(popup_html, max_width=300)
-                        ).add_to(m)
-            st_folium(m, width="100%", height=510, key="map_final_v7")
+                        folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, popup=folium.Popup(popup_html, max_width=300)).add_to(m)
+            
+            if show_heat and heat_data:
+                HeatMap(heat_data, radius=15, blur=10).add_to(m)
+
+            st_folium(m, width="100%", height=500, key="map_final_v8")
 
         with tabs[1]:
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
