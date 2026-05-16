@@ -25,46 +25,59 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- COMPACT PAGE PADDING & TABS CSS ---
+# --- CSS FOR UNIFIED TOOLBAR & PILL RADIO BUTTONS ---
 st.markdown("""
     <style>
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
     }
-    .stTabs [data-baseweb="tab"] {
-        background-color: rgba(128, 128, 128, 0.1) !important;
-        padding: 8px 22px !important;
+    
+    /* ПРЕВРЪЩАНЕ НА RADIO БУТОНИТЕ В ТАБОВЕ */
+    div[role="radiogroup"] {
+        flex-direction: row;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    div[role="radiogroup"] > label {
+        background-color: rgba(128, 128, 128, 0.08) !important;
+        padding: 8px 20px !important;
         border-radius: 30px !important;
         border: 1px solid rgba(128, 128, 128, 0.2) !important;
-        margin-right: 8px !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(128, 128, 128, 0.2) !important;
-        border-color: rgba(128, 128, 128, 0.3) !important;
         cursor: pointer;
+        transition: all 0.2s ease-in-out !important;
+        margin-bottom: 0 !important;
     }
-    .stTabs [aria-selected="true"] {
+    div[role="radiogroup"] > label:hover {
+        background-color: rgba(128, 128, 128, 0.18) !important;
+        border-color: rgba(128, 128, 128, 0.3) !important;
+    }
+    /* Скриване на оригиналното кръгче на радио бутона */
+    div[role="radiogroup"] > label > div:first-child {
+        display: none !important;
+    }
+    /* Стилизиране на текста вътре */
+    div[role="radiogroup"] > label p {
+        margin: 0 !important;
+        font-size: 1rem !important;
+    }
+    /* Активен (избран) бутон */
+    div[role="radiogroup"] > label:has(input:checked) {
         background-color: rgba(128, 128, 128, 0.25) !important;
         border-color: rgba(128, 128, 128, 0.45) !important;
+    }
+    div[role="radiogroup"] > label:has(input:checked) p {
         font-weight: 700 !important;
     }
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: transparent !important;
+    
+    /* Вертикално центриране на елементите в колоните */
+    div[data-testid="stHorizontalBlock"] {
+        align-items: center !important;
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0px !important;
-        margin-bottom: 10px !important;
-        border-bottom: none !important;
-    }
-    /* Стилизиране на малкия Toolbar над картата */
-    .map-toolbar {
-        background-color: rgba(128, 128, 128, 0.05);
-        padding: 5px 15px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        border: 1px solid rgba(128, 128, 128, 0.15);
+    /* Скриване на етикетите (labels) на toggle и selectbox, за да са в една линия */
+    div[data-testid="stSelectbox"] label, div[data-testid="stToggle"] label {
+        display: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -132,45 +145,51 @@ try:
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # HEADER
+        # HEADER (Балони и Емблема)
         header_html = f"""
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
             <div style="display: flex; gap: 10px; align-items: center;">
                 <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 75px;">
-                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Points</span>
-                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{points_count}</span>
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Points</span>
+                    <span style="font-size: 0.95rem; font-weight: 700;">{points_count}</span>
                 </div>
                 <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 75px;">
-                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Birds</span>
-                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{birds_count}</span>
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Birds</span>
+                    <span style="font-size: 0.95rem; font-weight: 700;">{birds_count}</span>
                 </div>
                 <div style="background-color: rgba(128, 128, 128, 0.12); padding: 5px 14px; border-radius: 15px; border: 1px solid rgba(128, 128, 128, 0.2); text-align: center; min-width: 120px;">
-                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px; color: inherit;">Latest Sync</span>
-                    <span style="font-size: 0.95rem; font-weight: 700; color: inherit;">{latest_sync_str}</span>
+                    <span style="font-size: 0.65rem; opacity: 0.6; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Latest Sync</span>
+                    <span style="font-size: 0.95rem; font-weight: 700;">{latest_sync_str}</span>
                 </div>
             </div>
-            <div style="font-size: 1.3rem; font-weight: 700; color: inherit; letter-spacing: -0.5px; white-space: nowrap; opacity: 0.9;">
+            <div style="font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; opacity: 0.9;">
                 🦅 Kalimok Bird Tracking Platform
             </div>
         </div>
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        tabs = st.tabs(["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"])
-
-        with tabs[0]:
-            # --- MAP TOOLBAR ---
-            st.markdown('<div class="map-toolbar">', unsafe_allow_html=True)
-            t_col1, t_col2, t_col3 = st.columns([1.5, 2, 6])
-            with t_col1:
+        # --- UNIFIED TOOLBAR ROW ---
+        # Създаваме колони: една широка за навигацията и две тесни за контролите
+        nav_col, heat_col, base_col = st.columns([5.5, 1.5, 2.5])
+        
+        with nav_col:
+            active_tab = st.radio("Nav", ["📍 Map View", "📈 Bio-Telemetry", "🎯 Clusters"], horizontal=True, label_visibility="collapsed")
+            
+        if active_tab == "📍 Map View":
+            with heat_col:
                 show_heat = st.toggle("🔥 Heatmap", value=False)
-            with t_col2:
-                map_style = st.selectbox("Basemap", ["Satellite", "CartoDB Positron", "OpenStreetMap"], label_visibility="collapsed")
-            st.markdown('</div>', unsafe_allow_html=True)
+            with base_col:
+                # OpenStreetMap вече е на първо място, съответно се зарежда по подразбиране
+                map_style = st.selectbox("Basemap", ["OpenStreetMap", "Satellite", "CartoDB Positron"], label_visibility="collapsed")
+        
+        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
 
-            # --- MAP INITIALIZATION ---
+        # --- CONTENT RENDER BASED ON SELECTION ---
+        if active_tab == "📍 Map View":
             center_lat, center_lon = df_filtered['Lat'].mean(), df_filtered['Lon'].mean()
             
+            # Избор на подложка според селекцията
             if map_style == "Satellite":
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, 
                                tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', 
@@ -180,12 +199,11 @@ try:
             else:
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
 
-            # --- PLUGINS (Draw, Measure, Fullscreen) ---
+            # Плъгини за чертане, измерване и цял екран
             Draw(export=True, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
             MeasureControl(position='topright', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
             Fullscreen(position='topright', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
 
-            # --- DATA LAYERS ---
             heat_data = []
             for dev in selected_devices:
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
@@ -226,19 +244,22 @@ try:
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
 
-            st_folium(m, width="100%", height=500, key="map_final_v8")
+            st_folium(m, width="100%", height=510, key="map_view_main")
 
-        with tabs[1]:
+        elif active_tab == "📈 Bio-Telemetry":
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
             if not df_exp_f.empty:
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=250, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=250, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
 
-        with tabs[2]:
+        elif active_tab == "🎯 Clusters":
             if len(df_filtered) > 5:
                 db = DBSCAN(eps=0.005, min_samples=3).fit(np.radians(df_filtered[['Lat', 'Lon']].values))
                 df_filtered['Cluster'] = db.labels_.astype(str)
-                st.plotly_chart(px.scatter_mapbox(df_filtered, lat="Lat", lon="Lon", color="Cluster", zoom=9, height=500, mapbox_style="carto-positron"), use_container_width=True)
+                st.plotly_chart(px.scatter_mapbox(df_filtered, lat="Lat", lon="Lon", color="Cluster", zoom=9, height=520, mapbox_style="carto-positron"), use_container_width=True)
+            else:
+                st.warning("Not enough data points to run clustering algorithm.")
+                
     else:
         st.info("Select transmitters from the sidebar to begin analysis.")
 
