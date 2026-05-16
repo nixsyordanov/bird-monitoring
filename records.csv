@@ -1,0 +1,16 @@
+﻿Device;Time (UTC);Raw Data;Position;Radius (m) (Source/Status);Sequence Number;LQI;Link Quality;Operator Name;Country Code;Base Stations (ID, RSSI, Reps);Compression;VeDBA 5 (raw);VeDBA 4 (raw);VeDBA 3 (raw);VeDBA 2 (raw);VeDBA 1 (raw);Avg. Temp 5 (°C);Avg. Temp 4 (°C);Avg. Temp 3 (°C);Avg. Temp 2 (°C);Avg. Temp 1 (°C);Min. Temp (°C);Pressure (mbar)
+9EB96B;15.05.2026, 13:57:22;00000002008638e180;44.011968, 26.437973;900 (2/1);13;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -76, 3;No;0;0;0;2;0;19.0;21.0;21.0;19.0;18.0;>10;N/A
+9EAE0B;13.05.2026, 12:55:56;010100000086286388;44.011488, 26.439794;900 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -76, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;20.0;>10;N/A
+9EAF22;13.05.2026, 12:38:12;01010000008628638c;44.011419, 26.440374;2400 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -86, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;21.0;>10;N/A
+9E7015;13.05.2026, 12:07:13;01010000008628638c;44.011296, 26.439855;900 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -76, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;21.0;>10;N/A
+9EA302;13.05.2026, 11:45:17;01010000008628638c;44.011676, 26.440739;400 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -69, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;21.0;>10;N/A
+9ED39D;13.05.2026, 11:23:40;01010000008628638c;44.012503, 26.437997;500 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -71, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;21.0;>10;N/A
+9EA98B;13.05.2026, 11:22:45;01010000008628638c;44.011206, 26.439445;1000 (2/1);10;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -77, 3;No;1;1;0;0;0;19.0;20.0;19.0;21.0;21.0;>10;N/A
+9E75C6;21.04.2026, 18:16:18;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -87, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+9EDA30;21.04.2026, 18:15:00;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -91, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+9EAEA9;21.04.2026, 18:13:21;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -92, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+120DA27;21.04.2026, 18:12:28;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -96, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+120DA3C;21.04.2026, 18:11:47;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -88, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+9E7B68;21.04.2026, 18:08:19;02;N/A;undefined (undefined/0);8;Good;2;SIGFOX_Germany;276;13C97, -86, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+12132C4;21.04.2026, 18:04:53;02;N/A;undefined (undefined/0);6;Good;2;SIGFOX_Germany;276;13C97, -95, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
+9EDBBB;21.04.2026, 18:04:19;02;N/A;undefined (undefined/0);5;Good;2;SIGFOX_Germany;276;13C97, -85, 3;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A;N/A
