@@ -95,15 +95,12 @@ def load_and_process_data():
         df = df[df['Position'] != 'N/A']
         df[['Lat', 'Lon']] = df['Position'].str.split(',', expand=True).astype(float)
         
-        # Функция за безопасно извличане на радиуса (премахва текста след метрите)
         def parse_radius(val):
             try:
-                # Вземаме само първата цифра (метри)
                 return float(str(val).split()[0])
             except:
                 return 0
                 
-        # Добавяме колона с изчистен радиус, ако съществува
         if 'Radius (m) (Source/Status)' in df.columns:
             df['Clean_Radius'] = df['Radius (m) (Source/Status)'].apply(parse_radius)
         else:
@@ -120,7 +117,11 @@ def load_and_process_data():
                     'Temperature (°C)': row.get(f'Avg. Temp {i} (°C)', 0),
                     'Lat': row['Lat'], 'Lon': row['Lon']
                 })
-        return df, pd.DataFrame(expanded_list)
+        
+        # КРИТИЧНА ПОПРАВКА ЗА ТЕЛЕМЕТРИЯТА: Сортираме хронологично целия DataFrame
+        df_expanded = pd.DataFrame(expanded_list).sort_values(by=['Device', 'Time'])
+        
+        return df, df_expanded
     except Exception as e:
         return pd.DataFrame(), pd.DataFrame()
 
@@ -133,16 +134,13 @@ try:
     selected_devices = []
     
     if not df_main.empty:
-        # 1. Подреждане на устройствата по дата на последна активност (Смарт чекбоксове)
         latest_times = df_main.groupby('Device')['Time (UTC)'].max().sort_values(ascending=False)
         available_devices = latest_times.index.tolist()
         
         st.sidebar.subheader("Transmitters (Sorted by latest sync)")
         for i, dev in enumerate(available_devices):
             color = colors[i % len(colors)]
-            # Форматиране на датата
             last_sync_formatted = latest_times[dev].strftime('%d %b, %H:%M')
-            # Смарт етикет: Име + Дата на последно обаждане
             checkbox_label = f"● {dev} (Last: {last_sync_formatted})"
             
             if st.sidebar.checkbox(checkbox_label, value=(i == 0), key=f"ch_{dev}"):
@@ -193,7 +191,6 @@ try:
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # ТАБОВЕ / РАДИО БУТОНИ
         nav_col, heat_col, base_col = st.columns([5.5, 1.5, 2.5])
         
         with nav_col:
@@ -209,13 +206,12 @@ try:
 
         if active_tab == "📍 Map View":
             
-            # Обновена легенда за SP, EP и Интерактивния Радиус
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b> 
                 🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
                 🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span> &nbsp;|&nbsp; 
-                ⭕ Click on any point to view its specific location accuracy radius.
+                ⭕ Toggle the <b>Accuracy Radii</b> layer via the menu in the bottom right corner.
             </div>
             """, unsafe_allow_html=True)
 
@@ -230,57 +226,48 @@ try:
             else:
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
 
-            # GIS Инструменти
             Draw(export=True, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
             MeasureControl(position='topright', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
             Fullscreen(position='topright', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
 
+            # --- Създаване на FeatureGroup за Радуисите (Скрита по подразбиране) ---
+            fg_radii = folium.FeatureGroup(name="⭕ Accuracy Radii", show=False)
+
             heat_data = []
             for dev in selected_devices:
-                # Вземаме данните за тази конкретна птица
                 all_dev_data = df_main[df_main['Device'] == dev].sort_values('Time (UTC)')
                 points_all = all_dev_data[['Lat', 'Lon']].values.tolist()
                 
-                # Вземаме данните за ФИЛТРИРАНИЯ период за легендата (SP/EP)
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
                 
                 if points_all:
                     heat_data.extend(points_all)
-                    # Чертаем цялата линия по трасето (а не само за филтрирания период, за да има контекст)
                     folium.PolyLine(points_all, color=color, weight=3, opacity=0.6).add_to(m)
                     
-                    # Маркери SP и EP (За Старт и Край на избрания период)
                     if not dev_df.empty:
                         sp_row = dev_df.iloc[0]
                         ep_row = dev_df.iloc[-1]
                         
-                        # Маркер за Start Point
                         folium.Marker(
                             [sp_row['Lat'], sp_row['Lon']], 
                             icon=folium.Icon(color='green', icon='info-sign'),
                             tooltip=f"Start Point (SP) | {sp_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
                         
-                        # Маркер за End Point
                         folium.Marker(
                             [ep_row['Lat'], ep_row['Lon']], 
                             icon=folium.Icon(color='red', icon='info-sign'),
                             tooltip=f"End Point (EP) | {ep_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
 
-                    # --- ЦИКЪЛ ЗА ТОЧКИТЕ И СКРИТИТЕ РАДИУСИ (ЗА ВСИЧКИ ТОЧКИ НА ПТИЦАТА) ---
-                    for idx_raw, (data_idx, r) in enumerate(all_dev_data.iterrows()):
-                        
-                        # КРИТИЧНО: Генериране на уникален ID за тази точка за JavaScript
-                        pt_id = f"circ_{dev}_{idx_raw}"
-                        
+                    for _, r in all_dev_data.iterrows():
                         popup_html = f"""
                         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
                             <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ {r['Device']}</h4>
                             <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
                                 <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
-                                <tr><td><b>Accuracy (Radius):</b></td><td style="text-align: right;">{int(r['Clean_Radius'])} m</td></tr>
+                                <tr><td><b>Accuracy:</b></td><td style="text-align: right;">{int(r['Clean_Radius'])} m</td></tr>
                                 <tr><td><b>Signal:</b></td><td style="text-align: right;">{r.get('LQI', 'N/A')}</td></tr>
                             </table>
                             <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; color: #555; border-top: 1px solid #ddd; padding-top: 6px;">📊 Packet Burst Readings</div>
@@ -297,116 +284,49 @@ try:
                                 <tr><td>5</td><td style="border-right: 1px solid #eee;">{r.get('VeDBA 5 (raw)', 'N/A')}</td><td>{r.get('Avg. Temp 5 (°C)', 'N/A')}°C</td></tr>
                             </table>
                         </div>
-                        
-                        <script>
-                        // Тази функция се извиква, когато Popup-ът се зареди
-                        (function() {{
-                            // Намираме цялата Leaflet карта в браузъра
-                            var current_map = null;
-                            for (var key in window) {{
-                                if (window[key] instanceof L.Map) {{
-                                    current_map = window[key];
-                                    break;
-                                }}
-                            }}
-
-                            if (!current_map) return; // Продължаваме само ако сме намерили картата
-                            
-                            // 1. Намираме окръжностите по техния уникален "pt_marker" ID клас
-                            // и скриваме ВСИЧКИ окръжности, за да сме сигурни
-                            current_map.eachLayer(function(layer) {{
-                                if (layer.options && layer.options.className && layer.options.className.includes('radius_circle')) {{
-                                    layer.setStyle({{ opacity: 0, fillOpacity: 0 }});
-                                }}
-                            }});
-                            
-                            // 2. Светваме само конкретната окръжност за ТОЗИ клик
-                            var circles_to_show = document.getElementsByClassName('{pt_id}');
-                            if (circles_to_show.length > 0) {{
-                                // Leaflet пази обектите по техния вътрешен Id (_leaflet_id)
-                                // Но тъй като е HTML, ползваме малък хак – Leaflet Circle е SVG, 
-                                // затова стилизираме през CSS.
-                                Array.from(circles_to_show).forEach(function(el) {{
-                                    el.style.display = 'block'; // Не работи директно, ползваме Leaflet API
-                                }});
-                                
-                                // По-сигурният начин през Leaflet API:
-                                current_map.eachLayer(function(layer) {{
-                                    if (layer.options && layer.options.className && layer.options.className.includes('{pt_id}')) {{
-                                        layer.setStyle({{ opacity: 1, fillOpacity: 0.15 }});
-                                    }}
-                                }});
-                            }}
-
-                            // 3. Когато потребителят затвори прозореца, угасваме окръжността
-                            current_map.on('popupclose', function(e) {{
-                                if (e.popup._source._acc_circle) {{
-                                    e.popup._source._acc_circle.setStyle({{ opacity: 0, fillOpacity: 0 }});
-                                }}
-                                // Угасваме всички, за всеки случай
-                                current_map.eachLayer(function(layer) {{
-                                    if (layer.options && layer.options.className && layer.options.className.includes('radius_circle')) {{
-                                        layer.setStyle({{ opacity: 0, fillOpacity: 0 }});
-                                    }}
-                                }});
-                            }});
-
-                        }})();
-                        </script>
                         """
                         
-                        f_popup = folium.Popup(popup_html, max_width=300)
-                        
-                        # Малкият бял маркер, по който кликваме
-                        pt_marker = folium.CircleMarker(
+                        # 1. Слагаме точката на главната карта
+                        folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
-                            radius=4, 
-                            color='white', 
-                            fill=True, 
-                            fill_color=color, 
-                            fill_opacity=1, 
-                            popup=f_popup,
+                            radius=4, color='white', fill=True, fill_color=color, fill_opacity=1, 
+                            popup=folium.Popup(popup_html, max_width=300),
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
                         
-                        # --- ЧЕРТАЕНЕ НА СКРИТАТА ОКРЪЖНОСТ НА ТОЧНОСТ ---
-                        # Настройваме я да е НЕВИДИМА при зареждане (opacity=0)
+                        # 2. Слагаме окръжността в отделния скрит слой
                         if r['Clean_Radius'] > 0:
-                            acc_circle = folium.Circle(
+                            folium.Circle(
                                 location=[r['Lat'], r['Lon']],
                                 radius=r['Clean_Radius'],
                                 color=color,
-                                weight=1.5,
+                                weight=1,
                                 fill=True,
                                 fill_color=color,
-                                opacity=0,         # СКРИТА ГРАНИЦА
-                                fill_opacity=0,    # СКРИТ ФОН
-                                interactive=False, # За да не пречи при клик върху точката
-                                # КРИТИЧНО: Присвояваме уникален Id клас за JavaScript
-                                path_options={
-                                    'className': f'radius_circle {pt_id}' # Важно за JS
-                                },
-                                tooltip=f"Accuracy Radius: {int(r['Clean_Radius'])} m"
-                            ).add_to(m)
-                            
-                            # Свързваме маркера с окръжността му, за да я намерим по-лесно в JS
-                            pt_marker._acc_circle = acc_circle
+                                fill_opacity=0.15,
+                                tooltip=f"Radius: {int(r['Clean_Radius'])} m"
+                            ).add_to(fg_radii)
             
-            # Heatmap слой
+            # Добавяме слоя с радиусите към картата
+            fg_radii.add_to(m)
+            
+            # Добавяме LayerControl, за да може потребителят да пуска/спира слоевете
+            folium.LayerControl(position='bottomright', collapsed=False).add_to(m)
+            
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
 
-            # Стабилно зареждане на картата
-            st_folium(m, width="100%", height=510, key="map_view_refined_v9")
+            st_folium(m, width="100%", height=510, key="map_view_main_stable")
 
-        # ТАБ 📈 БИО-ТЕЛЕМЕТРИЯ
         elif active_tab == "📈 Bio-Telemetry":
-            df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)]
+            # Важно: Сортираме хронологично и филтрираните данни, за да изчертаем перфектни линии
+            df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)].sort_values('Time')
+            
             if not df_exp_f.empty:
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
-                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=280, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                # Добавен е параметърът markers=True за по-ясна визуализация на самите отчитания
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=280, markers=True, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
+                st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=280, markers=True, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
 
-        # ТАБ 🎯 КЛЪСТЕРИ
         elif active_tab == "🎯 Clusters":
             if len(df_filtered) > 5:
                 db = DBSCAN(eps=0.005, min_samples=3).fit(np.radians(df_filtered[['Lat', 'Lon']].values))
