@@ -32,8 +32,6 @@ st.markdown("""
         padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
     }
-    
-    /* ПРЕВРЪЩАНЕ НА RADIO БУТОНИТЕ В ТАБОВЕ */
     div[role="radiogroup"] {
         flex-direction: row;
         gap: 12px;
@@ -53,16 +51,13 @@ st.markdown("""
         background-color: rgba(128, 128, 128, 0.18) !important;
         border-color: rgba(128, 128, 128, 0.3) !important;
     }
-    /* Скриване на оригиналното кръгче на радио бутона */
     div[role="radiogroup"] > label > div:first-child {
         display: none !important;
     }
-    /* Стилизиране на текста вътре */
     div[role="radiogroup"] > label p {
         margin: 0 !important;
         font-size: 1rem !important;
     }
-    /* Активен (избран) бутон */
     div[role="radiogroup"] > label:has(input:checked) {
         background-color: rgba(128, 128, 128, 0.25) !important;
         border-color: rgba(128, 128, 128, 0.45) !important;
@@ -70,14 +65,22 @@ st.markdown("""
     div[role="radiogroup"] > label:has(input:checked) p {
         font-weight: 700 !important;
     }
-    
-    /* Вертикално центриране на елементите в колоните */
     div[data-testid="stHorizontalBlock"] {
         align-items: center !important;
     }
-    /* Скриване на етикетите (labels) на toggle и selectbox, за да са в една линия */
     div[data-testid="stSelectbox"] label, div[data-testid="stToggle"] label {
         display: none !important;
+    }
+    /* Легенда стил */
+    .map-legend {
+        font-size: 0.85rem;
+        color: #4b5563;
+        background: rgba(128, 128, 128, 0.05);
+        padding: 8px 15px;
+        border-radius: 8px;
+        border: 1px solid rgba(128, 128, 128, 0.15);
+        margin-bottom: 10px;
+        display: inline-block;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -91,6 +94,19 @@ def load_and_process_data():
         df = df.dropna(subset=['Position'])
         df = df[df['Position'] != 'N/A']
         df[['Lat', 'Lon']] = df['Position'].str.split(',', expand=True).astype(float)
+        
+        # Функция за безопасно извличане на радиуса (премахва текста след метрите)
+        def parse_radius(val):
+            try:
+                return float(str(val).split()[0])
+            except:
+                return 0
+                
+        # Добавяме колона с изчистен радиус, ако съществува
+        if 'Radius (m) (Source/Status)' in df.columns:
+            df['Clean_Radius'] = df['Radius (m) (Source/Status)'].apply(parse_radius)
+        else:
+            df['Clean_Radius'] = 0
         
         expanded_list = []
         for _, row in df.iterrows():
@@ -112,18 +128,25 @@ try:
     
     # --- SIDEBAR ---
     st.sidebar.header("Controls")
-    available_devices = sorted(df_main['Device'].unique()) if not df_main.empty else []
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
-    
     selected_devices = []
-    st.sidebar.subheader("Transmitters")
-    for i, dev in enumerate(available_devices):
-        color = colors[i % len(colors)]
-        if st.sidebar.checkbox(f"● {dev}", value=(i == 0), key=f"ch_{dev}"):
-            selected_devices.append(dev)
-
-    st.sidebar.subheader("Time Range")
+    
     if not df_main.empty:
+        # 1. Подреждане на устройствата по дата на последна активност
+        latest_times = df_main.groupby('Device')['Time (UTC)'].max().sort_values(ascending=False)
+        available_devices = latest_times.index.tolist()
+        
+        st.sidebar.subheader("Transmitters (Sorted by latest sync)")
+        for i, dev in enumerate(available_devices):
+            color = colors[i % len(colors)]
+            last_sync_formatted = latest_times[dev].strftime('%d %b, %H:%M')
+            # Показване на датата до името
+            checkbox_label = f"● {dev} (Last: {last_sync_formatted})"
+            
+            if st.sidebar.checkbox(checkbox_label, value=(i == 0), key=f"ch_{dev}"):
+                selected_devices.append(dev)
+
+        st.sidebar.subheader("Time Range")
         abs_min, abs_max = df_main['Time (UTC)'].min().date(), df_main['Time (UTC)'].max().date()
         start_def = max(abs_max - timedelta(days=14), abs_min)
         date_range = st.sidebar.date_input("Period:", value=(start_def, abs_max), min_value=abs_min, max_value=abs_max)
@@ -145,7 +168,6 @@ try:
         birds_count = len(selected_devices)
         latest_sync_str = df_filtered['Time (UTC)'].max().strftime('%H:%M | %d %b')
 
-        # HEADER (Балони и Емблема)
         header_html = f"""
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; margin-bottom: 20px; border-bottom: 1px solid rgba(128, 128, 128, 0.25);">
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -169,8 +191,6 @@ try:
         """
         st.markdown(header_html, unsafe_allow_html=True)
 
-        # --- UNIFIED TOOLBAR ROW ---
-        # Създаваме колони: една широка за навигацията и две тесни за контролите
         nav_col, heat_col, base_col = st.columns([5.5, 1.5, 2.5])
         
         with nav_col:
@@ -180,16 +200,24 @@ try:
             with heat_col:
                 show_heat = st.toggle("🔥 Heatmap", value=False)
             with base_col:
-                # OpenStreetMap вече е на първо място, съответно се зарежда по подразбиране
                 map_style = st.selectbox("Basemap", ["OpenStreetMap", "Satellite", "CartoDB Positron"], label_visibility="collapsed")
         
-        st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
 
-        # --- CONTENT RENDER BASED ON SELECTION ---
         if active_tab == "📍 Map View":
+            
+            # Легенда за SP, EP и Радиуса
+            st.markdown("""
+            <div class="map-legend">
+                <b>Legend:</b> 
+                🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
+                🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span> &nbsp;|&nbsp; 
+                ⭕ Semi-transparent circles indicate the location accuracy radius (m).
+            </div>
+            """, unsafe_allow_html=True)
+
             center_lat, center_lon = df_filtered['Lat'].mean(), df_filtered['Lon'].mean()
             
-            # Избор на подложка според селекцията
             if map_style == "Satellite":
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, 
                                tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', 
@@ -199,7 +227,6 @@ try:
             else:
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
 
-            # Плъгини за чертане, измерване и цял екран
             Draw(export=True, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
             MeasureControl(position='topright', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
             Fullscreen(position='topright', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
@@ -214,14 +241,17 @@ try:
                     heat_data.extend(points)
                     folium.PolyLine(points, color=color, weight=3).add_to(m)
                     
-                    for _, r in dev_df.iterrows():
+                    # 2. Определяне на Първа и Последна точка
+                    sp_row = dev_df.iloc[0]
+                    ep_row = dev_df.iloc[-1]
+                    
+                    for idx, r in dev_df.iterrows():
                         popup_html = f"""
                         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
                             <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ {r['Device']}</h4>
                             <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
                                 <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
-                                <tr><td><b>Coords:</b></td><td style="text-align: right;">{r['Lat']:.5f}, {r['Lon']:.5f}</td></tr>
-                                <tr><td><b>Seq No:</b></td><td style="text-align: right;">{int(r.get('Sequence Number', 0))}</td></tr>
+                                <tr><td><b>Accuracy:</b></td><td style="text-align: right;">{int(r['Clean_Radius'])} m</td></tr>
                                 <tr><td><b>Signal:</b></td><td style="text-align: right;">{r.get('LQI', 'N/A')}</td></tr>
                             </table>
                             <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; color: #555; border-top: 1px solid #ddd; padding-top: 6px;">📊 Packet Burst Readings</div>
@@ -239,7 +269,36 @@ try:
                             </table>
                         </div>
                         """
-                        folium.CircleMarker([r['Lat'], r['Lon']], radius=5, color='white', fill=True, fill_color=color, fill_opacity=1, popup=folium.Popup(popup_html, max_width=300)).add_to(m)
+                        
+                        # Добавяне на малките бели маркери по трасето
+                        folium.CircleMarker([r['Lat'], r['Lon']], radius=4, color='white', fill=True, fill_color=color, fill_opacity=1, popup=folium.Popup(popup_html, max_width=300)).add_to(m)
+                        
+                        # 3. Изчертаване на радиуса на точност (Ако има такъв)
+                        if r['Clean_Radius'] > 0:
+                            folium.Circle(
+                                location=[r['Lat'], r['Lon']],
+                                radius=r['Clean_Radius'],
+                                color=color,
+                                weight=1,
+                                fill=True,
+                                fill_color=color,
+                                fill_opacity=0.1, # Леко прозрачно
+                                tooltip=f"Accuracy Radius: {int(r['Clean_Radius'])} m"
+                            ).add_to(m)
+                    
+                    # Маркер за Start Point
+                    folium.Marker(
+                        [sp_row['Lat'], sp_row['Lon']], 
+                        icon=folium.Icon(color='green', icon='info-sign'),
+                        tooltip=f"Start Point (SP) | {sp_row['Time (UTC)'].strftime('%H:%M %d %b')}"
+                    ).add_to(m)
+                    
+                    # Маркер за End Point
+                    folium.Marker(
+                        [ep_row['Lat'], ep_row['Lon']], 
+                        icon=folium.Icon(color='red', icon='info-sign'),
+                        tooltip=f"End Point (EP) | {ep_row['Time (UTC)'].strftime('%H:%M %d %b')}"
+                    ).add_to(m)
             
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
