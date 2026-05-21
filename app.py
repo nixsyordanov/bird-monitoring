@@ -7,6 +7,7 @@ from streamlit_folium import st_folium
 import plotly.express as px
 from sklearn.cluster import DBSCAN
 from datetime import timedelta
+from branca.element import Template, MacroElement
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -82,6 +83,11 @@ st.markdown("""
         margin-bottom: 10px;
         display: inline-block;
     }
+    /* Стилизиране на контролите вляво, за да изглеждат като една група */
+    .leaflet-control-container .leaflet-left {
+        margin-left: 5px;
+        margin-top: 5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -118,7 +124,6 @@ def load_and_process_data():
                     'Lat': row['Lat'], 'Lon': row['Lon']
                 })
         
-        # КРИТИЧНА ПОПРАВКА ЗА ТЕЛЕМЕТРИЯТА: Сортираме хронологично целия DataFrame
         df_expanded = pd.DataFrame(expanded_list).sort_values(by=['Device', 'Time'])
         
         return df, df_expanded
@@ -206,12 +211,13 @@ try:
 
         if active_tab == "📍 Map View":
             
+            # Легенда: Вече обяснява, че радиусът е интерактивен
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b> 
                 🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
                 🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span> &nbsp;|&nbsp; 
-                ⭕ Toggle the <b>Accuracy Radii</b> layer via the menu in the bottom right corner.
+                ⭕ Click on any point to dynamically reveal its location accuracy radius.
             </div>
             """, unsafe_allow_html=True)
 
@@ -226,12 +232,11 @@ try:
             else:
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
 
-            Draw(export=True, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
-            MeasureControl(position='topright', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
-            Fullscreen(position='topright', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
-
-            # --- Създаване на FeatureGroup за Радуисите (Скрита по подразбиране) ---
-            fg_radii = folium.FeatureGroup(name="⭕ Accuracy Radii", show=False)
+            # --- КОНСОЛИДИРАНЕ НА ИНСТРУМЕНТИТЕ (САМО ОТ ЛЯВО) ---
+            # Export = False маха бутона за сваляне. Position='topleft' ги събира на едно място.
+            Draw(export=False, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
+            MeasureControl(position='topleft', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
+            Fullscreen(position='topleft', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
 
             heat_data = []
             for dev in selected_devices:
@@ -249,21 +254,24 @@ try:
                         sp_row = dev_df.iloc[0]
                         ep_row = dev_df.iloc[-1]
                         
+                        # Модерни икони (Play за Старт, Stop за Край)
                         folium.Marker(
                             [sp_row['Lat'], sp_row['Lon']], 
-                            icon=folium.Icon(color='green', icon='info-sign'),
+                            icon=folium.Icon(color='green', icon='play', prefix='fa'),
                             tooltip=f"Start Point (SP) | {sp_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
                         
                         folium.Marker(
                             [ep_row['Lat'], ep_row['Lon']], 
-                            icon=folium.Icon(color='red', icon='info-sign'),
+                            icon=folium.Icon(color='red', icon='stop', prefix='fa'),
                             tooltip=f"End Point (EP) | {ep_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
 
                     for _, r in all_dev_data.iterrows():
+                        # Вграждаме скрит <span>, който съхранява данните за радиуса и цвета за JS макроса
                         popup_html = f"""
-                        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
+                        <div class="custom-popup" style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
+                            <span class="radius-data" data-lat="{r['Lat']}" data-lon="{r['Lon']}" data-rad="{r['Clean_Radius']}" data-col="{color}" style="display:none;"></span>
                             <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ {r['Device']}</h4>
                             <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
                                 <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
@@ -286,32 +294,71 @@ try:
                         </div>
                         """
                         
-                        # 1. Слагаме точката на главната карта
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
                             radius=4, color='white', fill=True, fill_color=color, fill_opacity=1, 
                             popup=folium.Popup(popup_html, max_width=300),
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
+            
+            # --- JAVASCRIPT МАКРОС ЗА ДИНАМИЧНО ЧЕРТАЕ НА РАДИУСА ---
+            # Този скрипт се закача за картата и следи кога отваряме и затваряме прозорец.
+            js_script = """
+            {% macro script(this, kwargs) %}
+            <script>
+            var checkExist = setInterval(function() {
+                var mapObj = null;
+                for (var k in window) {
+                    if (window[k] instanceof L.Map) {
+                        mapObj = window[k];
+                        break;
+                    }
+                }
+                if (mapObj) {
+                    clearInterval(checkExist);
+                    var activeCircle = null;
+
+                    mapObj.on('popupopen', function(e) {
+                        var content = e.popup.getContent();
+                        var parser = new DOMParser();
+                        var doc = parser.parseFromString(content, 'text/html');
+                        var dataSpan = doc.querySelector('.radius-data');
                         
-                        # 2. Слагаме окръжността в отделния скрит слой
-                        if r['Clean_Radius'] > 0:
-                            folium.Circle(
-                                location=[r['Lat'], r['Lon']],
-                                radius=r['Clean_Radius'],
-                                color=color,
-                                weight=1,
-                                fill=True,
-                                fill_color=color,
-                                fill_opacity=0.15,
-                                tooltip=f"Radius: {int(r['Clean_Radius'])} m"
-                            ).add_to(fg_radii)
-            
-            # Добавяме слоя с радиусите към картата
-            fg_radii.add_to(m)
-            
-            # Добавяме LayerControl, за да може потребителят да пуска/спира слоевете
-            folium.LayerControl(position='bottomright', collapsed=False).add_to(m)
+                        if (dataSpan) {
+                            var lat = parseFloat(dataSpan.getAttribute('data-lat'));
+                            var lon = parseFloat(dataSpan.getAttribute('data-lon'));
+                            var rad = parseFloat(dataSpan.getAttribute('data-rad'));
+                            var col = dataSpan.getAttribute('data-col');
+                            
+                            // Ако радиусът съществува и е по-голям от 0, рисуваме окръжност
+                            if (rad > 0 && !isNaN(rad)) {
+                                activeCircle = L.circle([lat, lon], {
+                                    radius: rad,
+                                    color: col,
+                                    weight: 1.5,
+                                    fillColor: col,
+                                    fillOpacity: 0.15,
+                                    interactive: false // Окръжността не блокира кликания с мишката
+                                }).addTo(mapObj);
+                            }
+                        }
+                    });
+
+                    mapObj.on('popupclose', function(e) {
+                        // Щом затвориш прозореца, изтриваме окръжността
+                        if (activeCircle) {
+                            mapObj.removeLayer(activeCircle);
+                            activeCircle = null;
+                        }
+                    });
+                }
+            }, 200);
+            </script>
+            {% endmacro %}
+            """
+            macro = MacroElement()
+            macro._template = Template(js_script)
+            m.get_root().add_child(macro)
             
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
@@ -319,11 +366,8 @@ try:
             st_folium(m, width="100%", height=510, key="map_view_main_stable")
 
         elif active_tab == "📈 Bio-Telemetry":
-            # Важно: Сортираме хронологично и филтрираните данни, за да изчертаем перфектни линии
             df_exp_f = df_expanded[(df_expanded['Device'].isin(selected_devices)) & (df_expanded['Time'].dt.date >= start_d) & (df_expanded['Time'].dt.date <= end_d)].sort_values('Time')
-            
             if not df_exp_f.empty:
-                # Добавен е параметърът markers=True за по-ясна визуализация на самите отчитания
                 st.plotly_chart(px.line(df_exp_f, x='Time', y='Activity (VeDBA)', color='Device', height=280, markers=True, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
                 st.plotly_chart(px.line(df_exp_f, x='Time', y='Temperature (°C)', color='Device', height=280, markers=True, template="plotly_white", color_discrete_sequence=colors), use_container_width=True)
 
