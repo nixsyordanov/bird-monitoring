@@ -7,6 +7,7 @@ from streamlit_folium import st_folium
 import plotly.express as px
 from sklearn.cluster import DBSCAN
 from datetime import timedelta
+from branca.element import Template, MacroElement
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -267,8 +268,6 @@ try:
         st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
 
         if active_tab == "📍 Map View":
-            
-            # Изчистена легенда - само за SP и EP
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b><br>
@@ -294,7 +293,6 @@ try:
 
             heat_data = []
             for dev in selected_devices:
-                # ВЗЕМАМЕ САМО ФИЛТРИРАНИТЕ ДАННИ, за да избегнем точки от друг период (като Швейцария през април)
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
                 
@@ -302,7 +300,6 @@ try:
                 
                 if points_filtered:
                     heat_data.extend(points_filtered)
-                    # Изчертаване на линията само за избрания период
                     folium.PolyLine(points_filtered, color=color, weight=3, opacity=0.8).add_to(m)
                     
                     if not dev_df.empty:
@@ -321,7 +318,6 @@ try:
                             tooltip=f"End Point (EP) | {ep_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
 
-                    # Маркери и Popups само за избрания период
                     for _, r in dev_df.iterrows():
                         summary_text = generate_point_summary(r)
                         
@@ -354,19 +350,51 @@ try:
                         </div>
                         """
                         
-                        # Стандартни малки, плътни бели точки за всички локации
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
-                            radius=4, 
-                            color='white', 
-                            weight=1,
-                            fill=True, 
-                            fill_color=color, 
-                            fill_opacity=1.0, 
+                            radius=4, color='white', weight=1, fill=True, fill_color=color, fill_opacity=1.0, 
                             popup=folium.Popup(popup_html, max_width=320),
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
-                        
+
+            # --- КИНЕМАТОГРАФИЧЕН FLY-IN МАКРОС ---
+            # Изчисляваме автоматично обхвата (Bounds) на филтрираните точки в Python
+            min_lat, max_lat = df_filtered['Lat'].min(), df_filtered['Lat'].max()
+            min_lon, max_lon = df_filtered['Lon'].min(), df_filtered['Lon'].max()
+            
+            # Малка застраховка: ако имаме само 1 точка, разширяваме малко обхвата, за да не се счупи Leaflet
+            if min_lat == max_lat: min_lat -= 0.02; max_lat += 0.02
+            if min_lon == max_lon: min_lon -= 0.02; max_lon += 0.02
+
+            js_fly_script = f"""
+            {{% macro script(this, kwargs) %}}
+            <script>
+            var checkMapExists = setInterval(function() {{
+                var leafMap = null;
+                for (var key in window) {{
+                    if (window[key] instanceof L.Map) {{
+                        leafMap = window[key];
+                        break;
+                    }
+                }}
+                if (leafMap) {{
+                    clearInterval(checkMapExists);
+                    // Изчакване 1 секунда (1000ms) и плавно прелитане до обхвата на точките
+                    setTimeout(function() {{
+                        leafMap.flyToBounds([{min_lat}, {min_lon}], [{max_lat}, {max_lon}], {{
+                            padding: [40, 40], // Отстъп в пиксели от краищата на екрана
+                            duration: 1.8     // Времетраене на анимацията в секунди
+                        }});
+                    }}, 1000);
+                }}
+            }}, 200);
+            </script>
+            {{% endmacro %}}
+            """
+            macro = MacroElement()
+            macro._template = Template(js_fly_script)
+            m.get_root().add_child(macro)
+            
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
 
