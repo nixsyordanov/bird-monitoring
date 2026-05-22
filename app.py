@@ -7,7 +7,6 @@ from streamlit_folium import st_folium
 import plotly.express as px
 from sklearn.cluster import DBSCAN
 from datetime import timedelta
-from branca.element import Template, MacroElement
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -72,7 +71,6 @@ st.markdown("""
     div[data-testid="stSelectbox"] label, div[data-testid="stToggle"] label {
         display: none !important;
     }
-    /* Легенда стил */
     .map-legend {
         font-size: 0.85rem;
         color: #4b5563;
@@ -83,13 +81,46 @@ st.markdown("""
         margin-bottom: 10px;
         display: inline-block;
     }
-    /* Стилизиране на контролите вляво, за да изглеждат като една група */
     .leaflet-control-container .leaflet-left {
         margin-left: 5px;
         margin-top: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
+
+# --- EXPERT SUMMARY FUNCTION ---
+def generate_point_summary(r):
+    vedba_vals = []
+    for i in range(1, 6):
+        val = r.get(f'VeDBA {i} (raw)')
+        try:
+            if val != 'N/A' and not pd.isna(val):
+                vedba_vals.append(float(val))
+        except:
+            pass
+            
+    if not vedba_vals:
+        act_text = "неизвестна активност"
+    else:
+        avg_vedba = sum(vedba_vals) / len(vedba_vals)
+        max_vedba = max(vedba_vals)
+        
+        if avg_vedba > 15 or max_vedba >= 25:
+            act_text = "<b>висока активност</b> (вероятен полет или ловуване)"
+        elif avg_vedba > 5:
+            act_text = "<b>умерена активност</b> (кратки движения)"
+        else:
+            act_text = "<b>покой</b> (почивка или гнездене)"
+            
+    radius = r.get('Clean_Radius', 0)
+    if radius < 100:
+        loc_text = "отлична GPS точност"
+    else:
+        loc_text = f"приблизителна мрежова локация ({int(radius)} м)"
+        
+    sig_text = "добра връзка" if str(r.get('LQI')) == 'Good' else "слаб сигнал"
+    
+    return f"💡 <b>Анализ:</b> Птицата е в състояние на {act_text}, засечена с {loc_text} и {sig_text}."
 
 # --- DATA LOADING ---
 @st.cache_data(ttl=600)
@@ -211,13 +242,12 @@ try:
 
         if active_tab == "📍 Map View":
             
-            # Легенда: Вече обяснява, че радиусът е интерактивен
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b> 
                 🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
                 🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span> &nbsp;|&nbsp; 
-                ⭕ Click on any point to dynamically reveal its location accuracy radius.
+                ⭕ Dashed rings represent the <b>Accuracy Radius</b> of each transmission.
             </div>
             """, unsafe_allow_html=True)
 
@@ -232,8 +262,6 @@ try:
             else:
                 m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles='OpenStreetMap')
 
-            # --- КОНСОЛИДИРАНЕ НА ИНСТРУМЕНТИТЕ (САМО ОТ ЛЯВО) ---
-            # Export = False маха бутона за сваляне. Position='topleft' ги събира на едно място.
             Draw(export=False, position='topleft', draw_options={'polyline': True, 'polygon': True, 'circle': False, 'marker': True, 'circlemarker': False}).add_to(m)
             MeasureControl(position='topleft', primary_length_unit='meters', secondary_length_unit='kilometers', primary_area_unit='sqmeters', secondary_area_unit='hectares').add_to(m)
             Fullscreen(position='topleft', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
@@ -254,7 +282,6 @@ try:
                         sp_row = dev_df.iloc[0]
                         ep_row = dev_df.iloc[-1]
                         
-                        # Модерни икони (Play за Старт, Stop за Край)
                         folium.Marker(
                             [sp_row['Lat'], sp_row['Lon']], 
                             icon=folium.Icon(color='green', icon='play', prefix='fa'),
@@ -268,11 +295,17 @@ try:
                         ).add_to(m)
 
                     for _, r in all_dev_data.iterrows():
-                        # Вграждаме скрит <span>, който съхранява данните за радиуса и цвета за JS макроса
+                        # Генериране на експертния анализ
+                        summary_text = generate_point_summary(r)
+                        
                         popup_html = f"""
-                        <div class="custom-popup" style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 240px; line-height: 1.4;">
-                            <span class="radius-data" data-lat="{r['Lat']}" data-lon="{r['Lon']}" data-rad="{r['Clean_Radius']}" data-col="{color}" style="display:none;"></span>
-                            <h4 style="margin: 0 0 5px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ {r['Device']}</h4>
+                        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 250px; line-height: 1.4;">
+                            <h4 style="margin: 0 0 8px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ Device: {r['Device']}</h4>
+                            
+                            <div style="background-color: #f0fdf4; border-left: 3px solid #22c55e; padding: 8px; margin-bottom: 10px; border-radius: 0 4px 4px 0;">
+                                {summary_text}
+                            </div>
+                            
                             <table style="width: 100%; margin-bottom: 8px; font-size: 11px;">
                                 <tr><td><b>Time (UTC):</b></td><td style="text-align: right;">{r['Time (UTC)'].strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
                                 <tr><td><b>Accuracy:</b></td><td style="text-align: right;">{int(r['Clean_Radius'])} m</td></tr>
@@ -294,71 +327,25 @@ try:
                         </div>
                         """
                         
+                        # 1. Позицията на птицата (Бялата точка)
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
                             radius=4, color='white', fill=True, fill_color=color, fill_opacity=1, 
-                            popup=folium.Popup(popup_html, max_width=300),
+                            popup=folium.Popup(popup_html, max_width=320),
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
-            
-            # --- JAVASCRIPT МАКРОС ЗА ДИНАМИЧНО ЧЕРТАЕ НА РАДИУСА ---
-            # Този скрипт се закача за картата и следи кога отваряме и затваряме прозорец.
-            js_script = """
-            {% macro script(this, kwargs) %}
-            <script>
-            var checkExist = setInterval(function() {
-                var mapObj = null;
-                for (var k in window) {
-                    if (window[k] instanceof L.Map) {
-                        mapObj = window[k];
-                        break;
-                    }
-                }
-                if (mapObj) {
-                    clearInterval(checkExist);
-                    var activeCircle = null;
-
-                    mapObj.on('popupopen', function(e) {
-                        var content = e.popup.getContent();
-                        var parser = new DOMParser();
-                        var doc = parser.parseFromString(content, 'text/html');
-                        var dataSpan = doc.querySelector('.radius-data');
                         
-                        if (dataSpan) {
-                            var lat = parseFloat(dataSpan.getAttribute('data-lat'));
-                            var lon = parseFloat(dataSpan.getAttribute('data-lon'));
-                            var rad = parseFloat(dataSpan.getAttribute('data-rad'));
-                            var col = dataSpan.getAttribute('data-col');
-                            
-                            // Ако радиусът съществува и е по-голям от 0, рисуваме окръжност
-                            if (rad > 0 && !isNaN(rad)) {
-                                activeCircle = L.circle([lat, lon], {
-                                    radius: rad,
-                                    color: col,
-                                    weight: 1.5,
-                                    fillColor: col,
-                                    fillOpacity: 0.15,
-                                    interactive: false // Окръжността не блокира кликания с мишката
-                                }).addTo(mapObj);
-                            }
-                        }
-                    });
-
-                    mapObj.on('popupclose', function(e) {
-                        // Щом затвориш прозореца, изтриваме окръжността
-                        if (activeCircle) {
-                            mapObj.removeLayer(activeCircle);
-                            activeCircle = null;
-                        }
-                    });
-                }
-            }, 200);
-            </script>
-            {% endmacro %}
-            """
-            macro = MacroElement()
-            macro._template = Template(js_script)
-            m.get_root().add_child(macro)
+                        # 2. Радарният пръстен за радиуса (Без фон, само пунктирана линия)
+                        if r['Clean_Radius'] > 0:
+                            folium.Circle(
+                                location=[r['Lat'], r['Lon']],
+                                radius=r['Clean_Radius'],
+                                color=color,
+                                weight=1.5,
+                                fill=False, # ТУК МАХАМЕ ЦВЕТНОТО ПЕТНО
+                                dash_array='5, 5', # ПУНКТИРАНА ЛИНИЯ
+                                interactive=False
+                            ).add_to(m)
             
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
