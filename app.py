@@ -91,7 +91,6 @@ st.markdown("""
 
 # --- EXPERT SUMMARY FUNCTION (DEEPER ANALYSIS IN ENGLISH) ---
 def generate_point_summary(r):
-    # 1. Извличане на VeDBA данни
     vedba_vals = []
     for i in range(1, 6):
         val = r.get(f'VeDBA {i} (raw)')
@@ -101,7 +100,6 @@ def generate_point_summary(r):
         except:
             pass
             
-    # 2. Извличане на температурни данни
     temp_vals = []
     for i in range(1, 6):
         val = r.get(f'Avg. Temp {i} (°C)')
@@ -111,7 +109,6 @@ def generate_point_summary(r):
         except:
             pass
 
-    # 3. Анализ на активността (По-задълбочен)
     if not vedba_vals:
         behavior_text = "Behavioral state is undetermined due to missing VeDBA data."
     else:
@@ -119,20 +116,15 @@ def generate_point_summary(r):
         max_vedba = max(vedba_vals)
         min_vedba = min(vedba_vals)
         
-        # Засичане на внезапни избухвания на енергия (Burst of activity)
         if max_vedba >= 20 and min_vedba <= 5:
             behavior_text = "<b>Intermittent High Activity:</b> The data shows a sudden burst of energy (peak VeDBA: 25+), suggesting brief periods of active foraging or short flights followed by rest."
-        # Висока и постоянна активност
         elif avg_vedba > 15:
             behavior_text = "<b>Sustained Movement:</b> High and consistent VeDBA values indicate prolonged physical exertion, highly characteristic of a significant migration flight or intense territorial patrolling."
-        # Умерена активност
         elif avg_vedba > 5:
             behavior_text = "<b>Moderate Activity:</b> The bird is exhibiting localized movements, likely indicative of routine ground foraging or short-distance hops within its established habitat."
-        # Пълен покой
         else:
             behavior_text = "<b>Resting State:</b> Minimal physical acceleration recorded. The bird is likely roosting, incubating, or stationed at a stopover site."
             
-    # 4. Анализ на Температурата
     if temp_vals:
         avg_temp = sum(temp_vals) / len(temp_vals)
         if avg_temp > 35:
@@ -144,7 +136,6 @@ def generate_point_summary(r):
     else:
         temp_text = ""
 
-    # 5. Анализ на Локацията и Мрежата
     radius = r.get('Clean_Radius', 0)
     if radius < 100:
         loc_text = "Excellent spatial precision (likely a direct GPS lock)."
@@ -155,7 +146,6 @@ def generate_point_summary(r):
         
     sig_text = "Strong telemetry link." if str(r.get('LQI')) == 'Good' else "Weak or marginal connection to base stations."
     
-    # 6. Сглобяване на финалния доклад
     return f"💡 <b>Ecological Insight:</b><br>{behavior_text} {temp_text}<br><br>📶 <b>Telemetry Diagnostics:</b><br>{loc_text} {sig_text}"
 
 # --- DATA LOADING ---
@@ -278,15 +268,12 @@ try:
 
         if active_tab == "📍 Map View":
             
-            # ОБНОВЕНА ЛЕГЕНДА ЗА НОВИЯ ВИЗУАЛЕН ПОДХОД
+            # Изчистена легенда - само за SP и EP
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b><br>
                 🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
-                🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span><br>
-                <b>Data Quality (Radius):</b> 
-                ⚪ <b>Small Solid Point</b> = High Accuracy (GPS) &nbsp;|&nbsp; 
-                🌫️ <b>Large Blurred Point</b> = Low Accuracy (Network Triangulation)
+                🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -307,15 +294,16 @@ try:
 
             heat_data = []
             for dev in selected_devices:
-                all_dev_data = df_main[df_main['Device'] == dev].sort_values('Time (UTC)')
-                points_all = all_dev_data[['Lat', 'Lon']].values.tolist()
-                
+                # ВЗЕМАМЕ САМО ФИЛТРИРАНИТЕ ДАННИ, за да избегнем точки от друг период (като Швейцария през април)
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
                 
-                if points_all:
-                    heat_data.extend(points_all)
-                    folium.PolyLine(points_all, color=color, weight=3, opacity=0.6).add_to(m)
+                points_filtered = dev_df[['Lat', 'Lon']].values.tolist()
+                
+                if points_filtered:
+                    heat_data.extend(points_filtered)
+                    # Изчертаване на линията само за избрания период
+                    folium.PolyLine(points_filtered, color=color, weight=3, opacity=0.8).add_to(m)
                     
                     if not dev_df.empty:
                         sp_row = dev_df.iloc[0]
@@ -333,8 +321,8 @@ try:
                             tooltip=f"End Point (EP) | {ep_row['Time (UTC)'].strftime('%H:%M %d %b')}"
                         ).add_to(m)
 
-                    for _, r in all_dev_data.iterrows():
-                        # Генериране на експертния анализ на английски
+                    # Маркери и Popups само за избрания период
+                    for _, r in dev_df.iterrows():
                         summary_text = generate_point_summary(r)
                         
                         popup_html = f"""
@@ -366,35 +354,17 @@ try:
                         </div>
                         """
                         
-                        # --- ЛОГИКА ЗА ВИЗУАЛНО КОДИРАНЕ НА ТОЧНОСТТА (Scale Mapping) ---
-                        rad_val = r['Clean_Radius']
-                        
-                        if rad_val < 100:
-                            # Много точно (GPS) -> Малка плътна точка
-                            pt_radius = 4
-                            pt_opacity = 1.0
-                            pt_weight = 1
-                        elif rad_val <= 2000:
-                            # Средна несигурност -> Малко по-голяма и леко прозрачна
-                            pt_radius = 7
-                            pt_opacity = 0.6
-                            pt_weight = 0
-                        else:
-                            # Висока несигурност (>2000m) -> Най-голямата и доста прозрачна ("мъглява") точка
-                            pt_radius = 10
-                            pt_opacity = 0.3
-                            pt_weight = 0
-                        
+                        # Стандартни малки, плътни бели точки за всички локации
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
-                            radius=pt_radius, 
+                            radius=4, 
                             color='white', 
-                            weight=pt_weight,
+                            weight=1,
                             fill=True, 
                             fill_color=color, 
-                            fill_opacity=pt_opacity, 
+                            fill_opacity=1.0, 
                             popup=folium.Popup(popup_html, max_width=320),
-                            tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')} (Accuracy: {int(rad_val)}m)"
+                            tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
                         
             if show_heat and heat_data:
