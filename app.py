@@ -7,7 +7,6 @@ from streamlit_folium import st_folium
 import plotly.express as px
 from sklearn.cluster import DBSCAN
 from datetime import timedelta
-from branca.element import Template, MacroElement
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -268,6 +267,7 @@ try:
         st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
 
         if active_tab == "📍 Map View":
+            
             st.markdown("""
             <div class="map-legend">
                 <b>Legend:</b><br>
@@ -276,6 +276,7 @@ try:
             </div>
             """, unsafe_allow_html=True)
 
+            # Базово центриране (ще бъде презаписано от fit_bounds, но го пазим за инициализация)
             center_lat, center_lon = df_filtered['Lat'].mean(), df_filtered['Lon'].mean()
             
             if map_style == "Satellite":
@@ -292,6 +293,20 @@ try:
             Fullscreen(position='topleft', title='Expand me', title_cancel='Exit me', force_separate_button=True).add_to(m)
 
             heat_data = []
+            
+            # --- НАТИВНО ФОКУСИРАНЕ (FIT BOUNDS) ---
+            # Намираме точните граници на всички филтрирани данни
+            min_lat, max_lat = df_filtered['Lat'].min(), df_filtered['Lat'].max()
+            min_lon, max_lon = df_filtered['Lon'].min(), df_filtered['Lon'].max()
+            
+            if pd.notna(min_lat) and pd.notna(max_lat) and pd.notna(min_lon) and pd.notna(max_lon):
+                # Ако имаме само 1 точка, разширяваме леко границите, за да не се зуумне екстремно
+                if min_lat == max_lat and min_lon == max_lon:
+                    m.fit_bounds([[min_lat - 0.05, min_lon - 0.05], [max_lat + 0.05, max_lon + 0.05]])
+                else:
+                    # max_zoom=14 предотвратява влизането твърде близо (до ниво отделни дървета), ако точките са на 2 метра една от друга
+                    m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], max_zoom=14)
+
             for dev in selected_devices:
                 dev_df = df_filtered[df_filtered['Device'] == dev].sort_values('Time (UTC)')
                 color = colors[available_devices.index(dev) % len(colors)]
@@ -352,46 +367,16 @@ try:
                         
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
-                            radius=4, color='white', weight=1, fill=True, fill_color=color, fill_opacity=1.0, 
+                            radius=4, 
+                            color='white', 
+                            weight=1,
+                            fill=True, 
+                            fill_color=color, 
+                            fill_opacity=1.0, 
                             popup=folium.Popup(popup_html, max_width=320),
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
-
-            # --- КИНЕМАТОГРАФИЧЕН FLY-IN МАКРОС (КОРИГИРАН) ---
-            min_lat, max_lat = df_filtered['Lat'].min(), df_filtered['Lat'].max()
-            min_lon, max_lon = df_filtered['Lon'].min(), df_filtered['Lon'].max()
-            
-            if min_lat == max_lat: min_lat -= 0.02; max_lat += 0.02
-            if min_lon == max_lon: min_lon -= 0.02; max_lon += 0.02
-
-            js_fly_script = f"""
-            {{% macro script(this, kwargs) %}}
-            <script>
-            var checkMapExists = setInterval(function() {{
-                var leafMap = null;
-                for (var key in window) {{
-                    if (window[key] instanceof L.Map) {{
-                        leafMap = window[key];
-                        break;
-                    }} // ТАЗИ СКОБА БЕШЕ ПРОБЛЕМНА
-                }}
-                if (leafMap) {{
-                    clearInterval(checkMapExists);
-                    setTimeout(function() {{
-                        leafMap.flyToBounds([{min_lat}, {min_lon}], [{max_lat}, {max_lon}], {{
-                            padding: [40, 40],
-                            duration: 1.8
-                        }});
-                    }}, 1000);
-                }}
-            }}, 200);
-            </script>
-            {{% endmacro %}}
-            """
-            macro = MacroElement()
-            macro._template = Template(js_fly_script)
-            m.get_root().add_child(macro)
-            
+                        
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
 
