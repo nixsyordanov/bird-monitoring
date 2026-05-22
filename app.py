@@ -80,6 +80,7 @@ st.markdown("""
         border: 1px solid rgba(128, 128, 128, 0.15);
         margin-bottom: 10px;
         display: inline-block;
+        line-height: 1.6;
     }
     .leaflet-control-container .leaflet-left {
         margin-left: 5px;
@@ -88,8 +89,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- EXPERT SUMMARY FUNCTION ---
+# --- EXPERT SUMMARY FUNCTION (DEEPER ANALYSIS IN ENGLISH) ---
 def generate_point_summary(r):
+    # 1. Извличане на VeDBA данни
     vedba_vals = []
     for i in range(1, 6):
         val = r.get(f'VeDBA {i} (raw)')
@@ -99,28 +101,62 @@ def generate_point_summary(r):
         except:
             pass
             
+    # 2. Извличане на температурни данни
+    temp_vals = []
+    for i in range(1, 6):
+        val = r.get(f'Avg. Temp {i} (°C)')
+        try:
+            if val != 'N/A' and not pd.isna(val):
+                temp_vals.append(float(val))
+        except:
+            pass
+
+    # 3. Анализ на активността (По-задълбочен)
     if not vedba_vals:
-        act_text = "неизвестна активност"
+        behavior_text = "Behavioral state is undetermined due to missing VeDBA data."
     else:
         avg_vedba = sum(vedba_vals) / len(vedba_vals)
         max_vedba = max(vedba_vals)
+        min_vedba = min(vedba_vals)
         
-        if avg_vedba > 15 or max_vedba >= 25:
-            act_text = "<b>висока активност</b> (вероятен полет или ловуване)"
+        # Засичане на внезапни избухвания на енергия (Burst of activity)
+        if max_vedba >= 20 and min_vedba <= 5:
+            behavior_text = "<b>Intermittent High Activity:</b> The data shows a sudden burst of energy (peak VeDBA: 25+), suggesting brief periods of active foraging or short flights followed by rest."
+        # Висока и постоянна активност
+        elif avg_vedba > 15:
+            behavior_text = "<b>Sustained Movement:</b> High and consistent VeDBA values indicate prolonged physical exertion, highly characteristic of a significant migration flight or intense territorial patrolling."
+        # Умерена активност
         elif avg_vedba > 5:
-            act_text = "<b>умерена активност</b> (кратки движения)"
+            behavior_text = "<b>Moderate Activity:</b> The bird is exhibiting localized movements, likely indicative of routine ground foraging or short-distance hops within its established habitat."
+        # Пълен покой
         else:
-            act_text = "<b>покой</b> (почивка или гнездене)"
+            behavior_text = "<b>Resting State:</b> Minimal physical acceleration recorded. The bird is likely roosting, incubating, or stationed at a stopover site."
             
+    # 4. Анализ на Температурата
+    if temp_vals:
+        avg_temp = sum(temp_vals) / len(temp_vals)
+        if avg_temp > 35:
+            temp_text = "The sensor is registering unusually high temperatures, potentially indicating direct exposure to intense solar radiation."
+        elif avg_temp < 10:
+            temp_text = "Ambient sensor readings are quite low, which correlates with nighttime resting or higher altitude flights."
+        else:
+            temp_text = "Sensor temperatures remain within a moderate, stable range."
+    else:
+        temp_text = ""
+
+    # 5. Анализ на Локацията и Мрежата
     radius = r.get('Clean_Radius', 0)
     if radius < 100:
-        loc_text = "отлична GPS точност"
+        loc_text = "Excellent spatial precision (likely a direct GPS lock)."
+    elif radius <= 2000:
+        loc_text = f"Moderate spatial confidence based on network triangulation (approx. {int(radius)}m radius)."
     else:
-        loc_text = f"приблизителна мрежова локация ({int(radius)} м)"
+        loc_text = f"Low spatial confidence (wide triangulation area of ~{int(radius)}m). Signal was likely obstructed."
         
-    sig_text = "добра връзка" if str(r.get('LQI')) == 'Good' else "слаб сигнал"
+    sig_text = "Strong telemetry link." if str(r.get('LQI')) == 'Good' else "Weak or marginal connection to base stations."
     
-    return f"💡 <b>Анализ:</b> Птицата е в състояние на {act_text}, засечена с {loc_text} и {sig_text}."
+    # 6. Сглобяване на финалния доклад
+    return f"💡 <b>Ecological Insight:</b><br>{behavior_text} {temp_text}<br><br>📶 <b>Telemetry Diagnostics:</b><br>{loc_text} {sig_text}"
 
 # --- DATA LOADING ---
 @st.cache_data(ttl=600)
@@ -242,12 +278,15 @@ try:
 
         if active_tab == "📍 Map View":
             
+            # ОБНОВЕНА ЛЕГЕНДА ЗА НОВИЯ ВИЗУАЛЕН ПОДХОД
             st.markdown("""
             <div class="map-legend">
-                <b>Legend:</b> 
+                <b>Legend:</b><br>
                 🟢 <span style="color: green; font-weight: bold;">Start Point (SP)</span> &nbsp;|&nbsp; 
-                🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span> &nbsp;|&nbsp; 
-                ⭕ Dashed rings represent the <b>Accuracy Radius</b> of each transmission.
+                🔴 <span style="color: red; font-weight: bold;">End Point (EP)</span><br>
+                <b>Data Quality (Radius):</b> 
+                ⚪ <b>Small Solid Point</b> = High Accuracy (GPS) &nbsp;|&nbsp; 
+                🌫️ <b>Large Blurred Point</b> = Low Accuracy (Network Triangulation)
             </div>
             """, unsafe_allow_html=True)
 
@@ -295,14 +334,14 @@ try:
                         ).add_to(m)
 
                     for _, r in all_dev_data.iterrows():
-                        # Генериране на експертния анализ
+                        # Генериране на експертния анализ на английски
                         summary_text = generate_point_summary(r)
                         
                         popup_html = f"""
                         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333333; min-width: 250px; line-height: 1.4;">
                             <h4 style="margin: 0 0 8px 0; color: {color}; font-size: 14px; border-bottom: 2px solid {color}; padding-bottom: 3px;">🛰️ Device: {r['Device']}</h4>
                             
-                            <div style="background-color: #f0fdf4; border-left: 3px solid #22c55e; padding: 8px; margin-bottom: 10px; border-radius: 0 4px 4px 0;">
+                            <div style="background-color: #f8fafc; border-left: 3px solid #3b82f6; padding: 8px; margin-bottom: 10px; border-radius: 0 4px 4px 0;">
                                 {summary_text}
                             </div>
                             
@@ -327,26 +366,37 @@ try:
                         </div>
                         """
                         
-                        # 1. Позицията на птицата (Бялата точка)
+                        # --- ЛОГИКА ЗА ВИЗУАЛНО КОДИРАНЕ НА ТОЧНОСТТА (Scale Mapping) ---
+                        rad_val = r['Clean_Radius']
+                        
+                        if rad_val < 100:
+                            # Много точно (GPS) -> Малка плътна точка
+                            pt_radius = 4
+                            pt_opacity = 1.0
+                            pt_weight = 1
+                        elif rad_val <= 2000:
+                            # Средна несигурност -> Малко по-голяма и леко прозрачна
+                            pt_radius = 7
+                            pt_opacity = 0.6
+                            pt_weight = 0
+                        else:
+                            # Висока несигурност (>2000m) -> Най-голямата и доста прозрачна ("мъглява") точка
+                            pt_radius = 10
+                            pt_opacity = 0.3
+                            pt_weight = 0
+                        
                         folium.CircleMarker(
                             [r['Lat'], r['Lon']], 
-                            radius=4, color='white', fill=True, fill_color=color, fill_opacity=1, 
+                            radius=pt_radius, 
+                            color='white', 
+                            weight=pt_weight,
+                            fill=True, 
+                            fill_color=color, 
+                            fill_opacity=pt_opacity, 
                             popup=folium.Popup(popup_html, max_width=320),
-                            tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
+                            tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')} (Accuracy: {int(rad_val)}m)"
                         ).add_to(m)
                         
-                        # 2. Радарният пръстен за радиуса (Без фон, само пунктирана линия)
-                        if r['Clean_Radius'] > 0:
-                            folium.Circle(
-                                location=[r['Lat'], r['Lon']],
-                                radius=r['Clean_Radius'],
-                                color=color,
-                                weight=1.5,
-                                fill=False, # ТУК МАХАМЕ ЦВЕТНОТО ПЕТНО
-                                dash_array='5, 5', # ПУНКТИРАНА ЛИНИЯ
-                                interactive=False
-                            ).add_to(m)
-            
             if show_heat and heat_data:
                 HeatMap(heat_data, radius=15, blur=10).add_to(m)
 
