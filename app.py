@@ -357,12 +357,10 @@ try:
                             tooltip=f"{r['Device']} | {r['Time (UTC)'].strftime('%H:%M')}"
                         ).add_to(m)
 
-            # --- КИНЕМАТОГРАФИЧЕН FLY-IN МАКРОС ---
-            # Изчисляваме автоматично обхвата (Bounds) на филтрираните точки в Python
+            # --- КИНЕМАТОГРАФИЧЕН FLY-IN МАКРОС (КОРИГИРАН) ---
             min_lat, max_lat = df_filtered['Lat'].min(), df_filtered['Lat'].max()
             min_lon, max_lon = df_filtered['Lon'].min(), df_filtered['Lon'].max()
             
-            # Малка застраховка: ако имаме само 1 точка, разширяваме малко обхвата, за да не се счупи Leaflet
             if min_lat == max_lat: min_lat -= 0.02; max_lat += 0.02
             if min_lon == max_lon: min_lon -= 0.02; max_lon += 0.02
 
@@ -375,15 +373,14 @@ try:
                     if (window[key] instanceof L.Map) {{
                         leafMap = window[key];
                         break;
-                    }
+                    }} // ТАЗИ СКОБА БЕШЕ ПРОБЛЕМНА
                 }}
                 if (leafMap) {{
                     clearInterval(checkMapExists);
-                    // Изчакване 1 секунда (1000ms) и плавно прелитане до обхвата на точките
                     setTimeout(function() {{
                         leafMap.flyToBounds([{min_lat}, {min_lon}], [{max_lat}, {max_lon}], {{
-                            padding: [40, 40], // Отстъп в пиксели от краищата на екрана
-                            duration: 1.8     // Времетраене на анимацията в секунди
+                            padding: [40, 40],
+                            duration: 1.8
                         }});
                     }}, 1000);
                 }}
