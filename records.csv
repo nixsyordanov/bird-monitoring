@@ -1,4 +1,5 @@
 ﻿Device;Time (UTC);Raw Data;Position;Radius (m) (Source/Status);Sequence Number;LQI;Link Quality;Operator Name;Country Code;Base Stations (ID, RSSI, Reps);Compression;VeDBA 5 (raw);VeDBA 4 (raw);VeDBA 3 (raw);VeDBA 2 (raw);VeDBA 1 (raw);Avg. Temp 5 (°C);Avg. Temp 4 (°C);Avg. Temp 3 (°C);Avg. Temp 2 (°C);Avg. Temp 1 (°C);Min. Temp (°C);Pressure (mbar)
+9EB96B;27.05.2026, 16:08:32;141714150db6ebafc0;44.013664, 26.441392;2400 (2/1);19;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -93, 3;No;20;23;20;21;13;31.0;32.0;32.0;33.0;34.0;>10;N/A
 9EB96B;25.05.2026, 15:50:06;1716141714aebb6eb8;44.012918, 26.440581;2400 (2/1);18;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -96, 3;No;23;22;20;23;20;29.0;29.0;31.0;32.0;32.0;>10;N/A
 9EB96B;23.05.2026, 15:31:18;121c171614b2baebb4;44.01139, 26.440795;3800 (2/1);17;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -108, 3;No;18;28;23;22;20;30.0;29.0;29.0;29.0;31.0;>10;N/A
 9EB96B;21.05.2026, 15:10:21;1114121c17a6bb2bac;44.012871, 26.439364;2400 (2/1);16;Good;2;SIGFOX_Customer_BioAcousticsNetwork_RC1;218;16091, -94, 3;No;17;20;18;28;23;27.0;29.0;30.0;29.0;29.0;>10;N/A
